@@ -1,0 +1,259 @@
+【一】概述
+   分布式版本控制系统，基本工作流程：在工作目录中修改某些文件；对修改后的文件进行快照，然后保存到暂存区域；提交更新，将保存在暂存区域的文件快照永久转储到 Git 目录中。
+【二】环境
+1、3台，一台作为服务器，另2台作为测试用客户端
+2、服务器地址CentOS 192.168.1.133，客户端地址CentOS 192.168.1.136，win7客户端
+【三】步骤
+●服务器端
+[root@localhost ~]# yum install curl-devel expat-devel gettext-devel openssl-devel zlib-devel perl-devel
+[root@localhost ~]# wget http://download.redis.io/releases/redis-3.2.8.tar.gz
+[root@localhost ~]# cd /opt/git-2.12.2/
+[root@localhost git-2.12.2]# make prefix=/usr/local all
+[root@localhost git-2.12.2]# make prefix=/usr/local install
+[root@localhost git-2.12.2]# git --version
+[root@localhost git-2.12.2]# yum install python python-setuptools(gitosis为Git用户权限管理系统,通过管理服务端文件来执行对用户权限的管理)
+[root@localhost git-2.12.2]# git clone git://github.com/res0nat0r/gitosis.git
+[root@localhost git-2.12.2]# cd gitosis/
+[root@localhost gitosis]# python setup.py install
+Finished processing dependencies for gitosis==0.2
+
+
+[root@localhost gitosis]# useradd -r -s /bin/sh -c 'git version control' -d /home/git git（服务器上生成git用户，使用git用户并初始化gitosis）
+[root@localhost gitosis]# passwd git【密码111111】
+[root@localhost gitosis]# mkdir -p /home/git
+[root@localhost gitosis]# chown git:git /home/git
+[root@localhost gitosis]# sudo -H -u git gitosis-init < /root/id_rsa.pub（生成的gitosis-admin为Git的用户访问权限管理库）
+Initialized empty Git repository in /home/git/repositories/gitosis-admin.git/
+Reinitialized existing Git repository in /home/git/repositories/gitosis-admin.git/
+gitosis通过这个git库来管理所有git库的访问权限；通过执行初始化，该公钥的拥有者就能修改用于配置gitosis的那个特殊Git仓库了
+[root@localhost gitosis]# 
+[root@localhost gitosis]# chmod 755 /home/git/repositories/gitosis-admin.git/hooks/post-update（修改上传权限）
+
+
+●客户端
+[root@localhost ~]# yum install git
+[root@localhost ~]# rpm -qa |grep git
+git-1.7.1-8.el6.x86_64
+[root@localhost ~]# git --version
+git version 1.7.1
+[root@localhost ~]# ssh-keygen -t rsa
+Generating public/private rsa key pair.
+Enter file in which to save the key (/root/.ssh/id_rsa):回车选择默认
+/root/.ssh/id_rsa already exists.
+Overwrite (y/n)? yes
+Enter passphrase (empty for no passphrase): 密码12345678
+Enter same passphrase again: 
+Your identification has been saved in /root/.ssh/id_rsa.
+Your public key has been saved in /root/.ssh/id_rsa.pub.
+The key fingerprint is:
+bb:9a:59:7c:1c:28:2d:67:18:28:80:bc:00:b8:89:8e root@localhost.localdomain
+The key's randomart image is:
++--[ RSA 2048]----+
+|B                |
+|+o   .           |
+|ooo . .          |
+|+. .   + .       |
+|o     + S .      |
+|E.     * o .     |
+|        + o      |
+|       + o       |
+|      +..        |
++-----------------+
+[root@localhost ~]# scp ~/.ssh/id_rsa.pub root@192.168.1.133:~/
+The authenticity of host '192.168.1.133 (192.168.1.133)' can't be established.
+RSA key fingerprint is 43:2b:45:8b:4e:d2:4e:95:7b:1f:08:f4:d5:fc:1f:cd.
+Are you sure you want to continue connecting (yes/no)? yes
+Warning: Permanently added '192.168.1.133' (RSA) to the list of known hosts.
+root@192.168.1.133's password: 
+id_rsa.pub                                                                                100%  408     0.4KB/s   00:00    
+[root@localhost gitosis]# ls /root（到服务器查看已经有了id_rsa.pub ）
+
+[root@localhost ~]# mkdir -p /git-repo/
+[root@localhost ~]# cd /git-repo/
+[root@localhost git-repo]# git clone git@192.168.1.133:/home/git/repositories/gitosis-admin.git（客户端导出管理）
+Initialized empty Git repository in /git-repo/gitosis-admin/.git/
+git@192.168.1.133's password: 
+remote: 对象计数中: 5, 完成.
+remote: 压缩对象中: 100% (4/4), 完成.
+remote: Total 5 (delta 1), reused 5 (delta 1)
+Receiving objects: 100% (5/5), done.
+Resolving deltas: 100% (1/1), done.
+[root@localhost git-repo]# cd gitosis-admin
+[root@localhost gitosis-admin]# find .
+.
+./gitosis.conf               （gitosis.conf文件用来设置用户、仓库和权限的控制文件）
+./keydir                     （keydir目录则是保存所有具有访问权限用户公钥的地方）
+./keydir/root@localhost.localdomain.pub  （该用户具有访问权限）
+./.git
+./.git/packed-refs
+./.git/config
+./.git/logs
+./.git/logs/refs
+./.git/logs/refs/heads
+./.git/logs/refs/heads/master
+./.git/logs/HEAD
+./.git/refs
+./.git/refs/heads
+./.git/refs/heads/master
+./.git/refs/remotes
+./.git/refs/remotes/origin
+./.git/refs/remotes/origin/HEAD
+./.git/refs/tags
+./.git/hooks
+./.git/hooks/pre-applypatch.sample
+./.git/hooks/prepare-commit-msg.sample
+./.git/hooks/pre-rebase.sample
+./.git/hooks/applypatch-msg.sample
+./.git/hooks/update.sample
+./.git/hooks/post-update.sample
+./.git/hooks/post-commit.sample
+./.git/hooks/pre-commit.sample
+./.git/hooks/post-receive.sample
+./.git/hooks/commit-msg.sample
+./.git/branches
+./.git/description
+./.git/objects
+./.git/objects/info
+./.git/objects/pack
+./.git/objects/pack/pack-cadd106cfc633da0940bc525b40163fe68678acc.pack
+./.git/objects/pack/pack-cadd106cfc633da0940bc525b40163fe68678acc.idx
+./.git/info
+./.git/info/exclude
+./.git/index
+./.git/HEAD
+[root@localhost gitosis-admin]# ls keydir/（查看已经上传密钥）
+root@localhost.localdomain.pub
+[root@localhost gitosis-admin]# vim gitosis.conf（授权和权限控制）
+[gitosis]
+
+[group gitosis-admin]
+members = root@localhost.localdomain
+writable = gitosis-admin
+
+[group jay_fans]
+members = root@localhost.localdomain
+writable = gitosis-test
+
+[root@localhost gitosis-admin]# git commit -a -m "granted jay commit rights to git-test"（提交修改）
+# On branch master
+# Your branch is ahead of 'origin/master' by 1 commit.
+#
+nothing to commit (working directory clean)
+[root@localhost gitosis-admin]# git push（成员jay通过以下命令获取代码）
+git@192.168.1.133's password: 
+Counting objects: 5, done.
+Compressing objects: 100% (3/3), done.
+Writing objects: 100% (3/3), 386 bytes, done.
+Total 3 (delta 0), reused 0 (delta 0)
+To git@192.168.1.133:/home/git/repositories/gitosis-admin.git
+   3ef42b4..3313566  master -> master
+●Github的使用
+◎○☆1、登录Github官网https://github.com/ ,申请Github账户，并创建名为github-test的Repository
+freescccc，2847315340@qq.com，free@2017
+◎○☆2、安装Git客户端（Linux）
+[root@localhost gitosis-admin]# yum install git git-gui
+◎○☆3、生成密钥对，并拷贝到Github网站
+[root@localhost gitosis-admin]# ssh-keygen -t rsa -C “2847315340@qq.com”
+[root@localhost gitosis-admin]# ssh-keygen -t rsa -C “2847315340@qq.com”
+Generating public/private rsa key pair.
+Enter file in which to save the key (/root/.ssh/id_rsa): 
+/root/.ssh/id_rsa already exists.
+Overwrite (y/n)? y
+Enter passphrase (empty for no passphrase): 
+Enter same passphrase again: 【密码12345678】
+Your identification has been saved in /root/.ssh/id_rsa.
+Your public key has been saved in /root/.ssh/id_rsa.pub.
+The key fingerprint is:
+b8:a5:40:ad:aa:45:55:71:01:f9:eb:4d:1e:d2:b9:db “2847315340@qq.com”
+The key's randomart image is:
++--[ RSA 2048]----+
+|      ++o.       |
+|     o..         |
+|    o ..         |
+|   o . ..        |
+|  . o . So .     |
+| . . . +o =      |
+|  o   o. = o     |
+| o      . +.     |
+|.         ..E    |
++-----------------+
+[root@localhost gitosis-admin]# cat /root/.ssh/id_rsa.pub
+ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq/2JL3PJrVZny+hQI0O/N149CHjtzU4irxypn68LNA+bHSj5EBXLtonT3pPmr2O4B3eKckWvs0YpSvM7oNMxzFDzhVJEzprrmuUsVrhdlSRBo0U+Ql0Qw+yjc8IEMlL97/aiGbWsDYJKzfM4Y/vOT97MPPbQ6eqPx7lo9UXS0AHcrjdPa6AG94s/Bcq7GpKH0VYE/bJMDa+jtLOG0npRtbEm3XPyLAHlGnpsQqsUQDr0c1NSWF2L51CW7McQGPAR4qEs+l4TiXPoAGq5BEsEhzi04h0aN0T9/BOV6Oe3dfLHOMQ9r4TmxL+0OGtJNmGw1DlMT6RiBRX/1IDBZfcH4w== “2847315340@qq.com”
+◎○☆4、添加
+登录Github点击Edit your profile->SSH keys,添加./.ssh/id_rsa.pub中的内容
+◎○☆5、设置ssh不输入口令
+[root@localhost gitosis-admin]# eval `ssh-agent`
+Agent pid 4020
+[root@localhost gitosis-admin]# ssh-add
+Enter passphrase for /root/.ssh/id_rsa: 【密码12345678】
+Identity added: /root/.ssh/id_rsa (/root/.ssh/id_rsa)
+[root@localhost gitosis-admin]# ssh git@github.com（测试是否能连接上GIthub）
+The authenticity of host 'github.com (192.30.255.112)' can't be established.
+RSA key fingerprint is 16:27:ac:a5:76:28:2d:36:63:1b:56:4d:eb:df:a6:48.
+Are you sure you want to continue connecting (yes/no)? yes
+Warning: Permanently added 'github.com,192.30.255.112' (RSA) to the list of known hosts.
+PTY allocation request failed on channel 0
+Hi freescccc! You've successfully authenticated, but GitHub does not provide shell access.
+                                                                                          Connection to github.com closed.
+[root@localhost gitosis-admin]#git config --global user.name freescccc（配置Git全局用户配置）
+root@localhost gitosis-admin]# git config --global user.email 2847315340@qq.com（配置Git全局用户配置）
+
+◎○☆创建本地新项目
+[root@localhost gitosis-admin]# mkdir github-test
+[root@localhost gitosis-admin]# cd github-test/
+[root@localhost github-test]# git init
+Initialized empty Git repository in /git-repo/gitosis-admin/github-test/.git/
+[root@localhost github-test]# touch README
+[root@localhost github-test]# git add README
+[root@localhost github-test]# git commit -m 'my first commit'
+[master (root-commit) 8e0279d] my first commit
+ 0 files changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 README
+[root@localhost github-test]# git remote add origin git@github.com:freescccc/github-test（定义远程服务器别名origin）
+[root@localhost github-test]# git pull origin master（通过pull子命令更新Github项目中作出的更改）
+[root@localhost github-test]# git push origin master（本地和远程实行合并，本地默认为master）
+[root@localhost github-test]# git push origin master
+fatal: remote error: 
+  git-repo/gitosis-admin/github-test is not a valid repository name
+  Email support@github.com for help
+[root@localhost github-test]# rm -rf git-repo/gitosis-admin/github-test
+[root@localhost github-test]# git init
+[root@localhost github-test]# vim README（更新文件）
+[root@localhost github-test]# git commit -a（自动commit更改文件）
+[root@localhost github-test]# git push origin master（更新到远程）
+[root@localhost github-test]# git branch（创建和合并分支）
+* master（显示当前分支是master）
+[root@localhost github-test]# git branch new-branch（创建分支）
+[root@localhost github-test]#  git checkout new-branch（切换到新分支）
+Switched to branch 'new-branch'
+[root@localhost github-test]# vi check.py（创建新文件）
+[root@localhost github-test]# git add check.py
+[root@localhost github-test]# git commit -a -m "added a python script"（Commit 到本地Git）
+[new-branch 0db9df4] added a python script
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+ create mode 100644 check.py
+[root@localhost github-test]#  git push origin new-feature（合并到远程服务器）
+[root@localhost github-test]# git checkout master（如果new-branch分支成熟了，则可以合并进master）
+[root@localhost github-test]# git merge new-branch
+Updating 32ae237..0db9df4
+Fast-forward
+ check.py |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+ create mode 100644 check.py
+[root@localhost github-test]# git branch
+* master
+  new-branch
+[root@localhost github-test]# git push（执行合并，master中也合并了new-branch中的更新）
+
+登录到GitHub，点击"Switch Branches"可以更改分支来查看不同分支下代码情况。
+
+【四】测试
+【五】问题
+1、禁用git用户的shell登陆
+出于安全考虑，第二步创建的git用户不允许登录shell，这可以通过编辑/etc/passwd文件完成。找到类似下面的一行：
+git:x:1001:1001:,,,:/home/git:/bin/bash  
+最后一个冒号后改为：
+git:x:1001:1001:,,,:/home/git:/usr/bin/git-shell  
+这样，git用户可以正常通过ssh使用git，但无法登录shell，因为我们为git用户指定的git-shell每次一登录就自动退出。
+
+2、如何设定不同的用户访问不同的 目录具有不同的权限？
